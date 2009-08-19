@@ -8,7 +8,7 @@ use Cwd;
 use File::Temp qw(tempdir);
 use POSIX qw(SIGTERM WNOHANG setuid);
 
-our $VERSION = 0.01;
+our $VERSION = 0.02;
 our @SEARCH_PATHS = qw(/usr/local/pgsql);
 
 our $errstr;
@@ -79,10 +79,16 @@ sub start {
     my $self = shift;
     return
         if defined $self->pid;
-    # try by incrementing port no
-    for (my $port = $BASE_PORT; $port < $BASE_PORT + 100; $port++) {
-        if ($self->_try_start($port)) {
+    if ($self->port) {
+        if ($self->_try_start($self->port)) {
             return;
+        }
+    } else {
+        # try by incrementing port no
+        for (my $port = $BASE_PORT; $port < $BASE_PORT + 100; $port++) {
+            if ($self->_try_start($port)) {
+                return;
+            }
         }
     }
     # failed
