@@ -3,13 +3,20 @@ package Test::postgresql;
 use strict;
 use warnings;
 
+use 5.008;
 use Class::Accessor::Lite;
 use Cwd;
 use File::Temp qw(tempdir);
 use POSIX qw(SIGTERM WNOHANG setuid);
 
-our $VERSION = 0.03;
-our @SEARCH_PATHS = qw(/usr/local/pgsql);
+our $VERSION = '0.04';
+
+our @SEARCH_PATHS = (
+    # popular installtion dir?
+    qw(/usr/local/pgsql),
+    # ubuntu (maybe debian as well, find the newest version)
+    (sort { $b cmp $a } grep { -d $_ } glob "/usr/lib/postgresql/*"),
+);
 
 our $errstr;
 our $BASE_PORT = 15432;
@@ -75,6 +82,15 @@ sub DESTROY {
         if defined $self->pid;
 }
 
+sub dsn {
+    my ($self, %args) = @_;
+    $args{host} ||= '127.0.0.1';
+    $args{port} ||= $self->port;
+    $args{user} ||= 'postgres';
+    $args{dbname} ||= 'template1';
+    return 'DBI:Pg:' . join(';', map { "$_=$args{$_}" } sort keys %args);
+}
+
 sub start {
     my $self = shift;
     return
@@ -113,11 +129,15 @@ sub _try_start {
             setuid($self->uid)
                 or die "setuid failed:$!";
         }
-        exec(
+        my $cmd = join(
+            ' ',
             $self->postmaster,
+            $self->postmaster_args,
             '-p', $port,
             '-D', $self->base_dir . '/data',
+            '-k', $self->base_dir . '/tmp',
         );
+        exec($cmd);
         die "failed to launch postmaster:$?";
     }
     close $logfh;
@@ -157,6 +177,7 @@ sub setup {
     my $self = shift;
     # (re)create directory structure
     mkdir $self->base_dir;
+    mkdir $self->base_dir . '/tmp';
     # initdb
     if (! -d $self->base_dir . '/data') {
         pipe my $rfh, my $wfh
@@ -274,6 +295,10 @@ Arguments passed to C<initdb> and C<postmaster>.  Following example adds --encod
           => $Test::postgresql::Defaults{initdb_args} . ' --encoding=utf8'
   ) or plan skip_all => $Test::postgresql::errstr;
 
+=head2 dsn
+
+Builds and returns dsn by using given parameters (if any).  Default username is 'postgres', and dbname is 'template1'.
+
 =head2 pid
 
 Returns process id of postgresql (or undef if not running).
@@ -294,9 +319,17 @@ Stops postmaster.
 
 Setups the postgresql instance.
 
+=head1 AUTHOR
+
+Kazuho Oku
+
+=head1 THANKS TO
+
+HSW
+
 =head1 COPYRIGHT
 
-Copyright (C) 2009 Cybozu Labs, Inc.  Written by Kazuho Oku.
+Copyright (C) 2009 Cybozu Labs, Inc.
 
 =head1 LICENSE
 
