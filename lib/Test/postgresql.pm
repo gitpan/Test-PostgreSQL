@@ -10,7 +10,7 @@ use DBI;
 use File::Temp qw(tempdir);
 use POSIX qw(SIGTERM WNOHANG setuid);
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 our @SEARCH_PATHS = (
     # popular installtion dir?
@@ -191,7 +191,12 @@ sub setup {
     my $self = shift;
     # (re)create directory structure
     mkdir $self->base_dir;
-    mkdir $self->base_dir . '/tmp';
+    if (mkdir $self->base_dir . '/tmp') {
+        if ($self->uid) {
+            chown $self->uid, -1, $self->base_dir . '/tmp'
+                or die "failed to chown dir:" . $self->base_dir . "/tmp:$!";
+        }
+    }
     # initdb
     if (! -d $self->base_dir . '/data') {
         pipe my $rfh, my $wfh
