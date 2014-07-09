@@ -11,10 +11,10 @@ use File::Temp qw(tempdir);
 use Time::HiRes qw(nanosleep);
 use POSIX qw(SIGTERM SIGKILL WNOHANG setuid);
 
-our $VERSION = '0.10';
+our $VERSION = '1.00';
 
 our @SEARCH_PATHS = (
-    # popular installtion dir?
+    # popular installation dir?
     qw(/usr/local/pgsql),
     # ubuntu (maybe debian as well, find the newest version)
     (sort { $b cmp $a } grep { -d $_ } glob "/usr/lib/postgresql/*"),
@@ -98,6 +98,11 @@ sub dsn {
     return 'DBI:Pg:' . join(';', map { "$_=$args{$_}" } sort keys %args);
 }
 
+sub uri {
+    my ($self, %args) = @_;
+    return sprintf('postgresql://postgres@127.0.0.1:%d/test', $self->port);
+}
+
 sub start {
     my $self = shift;
     return
@@ -131,16 +136,16 @@ sub start {
 sub _try_start {
     my ($self, $port) = @_;
     # open log and fork
-    open my $logfh, '>', $self->base_dir . '/postgres.log'
+    open my $logfh, '>>', $self->base_dir . '/postgres.log'
         or die 'failed to create log file:' . $self->base_dir
             . "/postgres.log:$!";
     my $pid = fork;
     die "fork(2) failed:$!"
         unless defined $pid;
     if ($pid == 0) {
-        open STDOUT, '>&', $logfh
+        open STDOUT, '>>&', $logfh
             or die "dup(2) failed:$!";
-        open STDERR, '>&', $logfh
+        open STDERR, '>>&', $logfh
             or die "dup(2) failed:$!";
         chdir $self->base_dir
             or die "failed to chdir to:" . $self->base_dir . ":$!";
@@ -263,6 +268,10 @@ sub setup {
         }
         die "*** initdb failed ***\n$output\n"
             if $? != 0;
+
+        # use postgres hard-coded configuration as some packagers mess
+        # around with postgresql.conf.sample too much:
+        truncate $self->base_dir . '/data/postgresql.conf', 0;
     }
 }
 
@@ -292,6 +301,10 @@ sub _get_path_of {
 
 1;
 __END__
+
+=pod
+
+=encoding utf8
 
 =head1 NAME
 
