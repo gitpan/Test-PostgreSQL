@@ -1,12 +1,15 @@
 use strict;
 use warnings;
 
+# This test checks if we can operate on the old Test::postgresql namespace
+# with the name shim..
+
 use DBI;
 use Test::More;
-use Test::PostgreSQL;
+use Test::postgresql;
 
-my $pgsql = Test::PostgreSQL->new()
-    or plan skip_all => $Test::PostgreSQL::errstr;
+my $pgsql = Test::postgresql->new()
+    or plan skip_all => "new() via old namespace failed with $Test::PostgreSQL::errstr";
 
 my $dsn = $pgsql->dsn;
 
@@ -17,7 +20,7 @@ is(
 );
 
 my $dbh = DBI->connect($dsn);
-ok($dbh->ping, 'connected to PostgreSQL');
+ok($dbh->ping, 'connected to PostgreSQL via old namespace');
 undef $dbh;
 
 my $uri = $pgsql->uri;
@@ -26,7 +29,7 @@ like($uri, qr/^postgresql:\/\/postgres\@127.0.0.1/);
 undef $pgsql;
 ok(
     ! DBI->connect($dsn, undef, undef, { PrintError => 0 }),
-    "Removing variable causes shutdown of postgresql"
+    "Removing variable causes shutdown of postgresql via old namespace"
 );
 
 done_testing;
