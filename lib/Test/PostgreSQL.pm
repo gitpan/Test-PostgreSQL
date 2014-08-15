@@ -11,7 +11,7 @@ use File::Temp qw(tempdir);
 use Time::HiRes qw(nanosleep);
 use POSIX qw(SIGTERM SIGKILL WNOHANG setuid);
 
-our $VERSION = '1.03';
+our $VERSION = '1.04';
 
 # Various paths that Postgres gets installed under, sometimes with a version on the end,
 # in which case take the highest version. We append /bin/ and so forth to the path later.
@@ -28,6 +28,10 @@ our @SEARCH_PATHS = (
     # BSDs end up with it in /usr/local/bin which doesn't appear to be in the path sometimes:
     "/usr/local",
 );
+
+if (defined $ENV{POSTGRES_HOME} and -d $ENV{POSTGRES_HOME}) {
+    unshift @SEARCH_PATHS, $ENV{POSTGRES_HOME};
+}
 
 our $errstr;
 our $BASE_PORT = 15432;
@@ -322,12 +326,17 @@ Test::PostgreSQL - PostgreSQL runner for tests
   use DBI;
   use Test::PostgreSQL;
   use Test::More;
-  
+
+  # optionally
+  # (if not already set at shell):
+  #
+  # $ENV{POSTGRES_HOME} = '/path/to/my/pgsql/installation';
+
   my $pgsql = Test::PostgreSQL->new()
       or plan skip_all => $Test::PostgreSQL::errstr;
-  
+
   plan tests => XXX;
-  
+
   my $dbh = DBI->connect($pgsql->dsn);
 
 =head1 DESCRIPTION
@@ -399,24 +408,32 @@ Stops postmaster.
 
 Setups the PostgreSQL instance.
 
+=head1 ENVIRONMENT
+
+=head2 POSTGRES_HOME
+
+If your postgres installation is not located in a well known path, or you have
+many versions installed and want to run your tests against particular one, set
+this environment variable to the desired path. For example:
+
+ export POSTGRES_HOME='/usr/local/pgsql94beta'
+
+This is the same idea and variable name which is used by the installer of
+L<DBD::Pg>.
+
 =head1 AUTHOR
 
-Toby Corkindale
-
-=head1 PREVIOUS AUTHOR
-
-Kazuho Oku
+Toby Corkindale, Kazuho Oku, and various contributors.
 
 =head1 COPYRIGHT
 
-Version 0.10 copyright © 2012 Toby Corkindale.
+Current version copyright © 2012-2014 Toby Corkindale.
 
 Previous versions copyright (C) 2009 Cybozu Labs, Inc.
 
 =head1 LICENSE
 
-This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
-
-See L<http://www.perl.com/perl/misc/Artistic.html>
+This module is free software, released under the Perl Artistic License 2.0.
+See L<http://www.perlfoundation.org/artistic_license_2_0> for more information.
 
 =cut
