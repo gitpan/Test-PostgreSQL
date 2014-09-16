@@ -28,4 +28,4 @@ requires:
 resources:
   license: http://opensource.org/licenses/artistic-license-2.0.php
   repository: https://github.com/TJC/Test-postgresql
-version: '1.04'
+version: '1.05'

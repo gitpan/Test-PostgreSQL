@@ -11,12 +11,13 @@ use File::Temp qw(tempdir);
 use Time::HiRes qw(nanosleep);
 use POSIX qw(SIGTERM SIGKILL WNOHANG setuid);
 
-our $VERSION = '1.04';
+our $VERSION = '1.05';
 
 # Various paths that Postgres gets installed under, sometimes with a version on the end,
 # in which case take the highest version. We append /bin/ and so forth to the path later.
 # Note that these are used only if the program isn't already in the path.
 our @SEARCH_PATHS = (
+    split(/:/, $ENV{PATH}),
     # popular installation dir?
     qw(/usr/local/pgsql),
     # ubuntu (maybe debian as well, find the newest version)
@@ -29,6 +30,8 @@ our @SEARCH_PATHS = (
     "/usr/local",
 );
 
+# This environment variable is used to override the default, so it gets
+# prefixed to the start of the search paths.
 if (defined $ENV{POSTGRES_HOME} and -d $ENV{POSTGRES_HOME}) {
     unshift @SEARCH_PATHS, $ENV{POSTGRES_HOME};
 }
@@ -135,8 +138,28 @@ sub start {
         die "failed to launch PostgreSQL:$!\n$err";
     }->();
     { # create "test" database
-        my $dbh = DBI->connect($self->dsn(dbname => 'template1'), '', '', {})
-            or die $DBI::errstr;
+        my $tries = 5;
+        my $dbh;
+        while ($tries) {
+            $tries -= 1;
+            $dbh = DBI->connect($self->dsn(dbname => 'template1'), '', '', {
+                PrintError => 0,
+                RaiseError => 0
+            });
+            last if $dbh;
+
+            # waiting for database to start up
+            if ($DBI::errstr =~ /the database system is starting up/ 
+                || $DBI::errstr =~ /Connection refused/) {
+                sleep(1);
+                next;
+            }
+            die $DBI::errstr;
+        }
+
+        die "Connection to the database failed even after 5 tries"
+            unless ($dbh);
+
         if ($dbh->selectrow_arrayref(q{SELECT COUNT(*) FROM pg_database WHERE datname='test'})->[0] == 0) {
             $dbh->do('CREATE DATABASE test')
                 or die $dbh->errstr;
@@ -289,25 +312,12 @@ sub setup {
 sub _find_program {
     my $prog = shift;
     undef $errstr;
-    my $path = _get_path_of($prog);
-    return $path
-        if $path;
     for my $sp (@SEARCH_PATHS) {
-        return "$sp/bin/$prog"
-            if -x "$sp/bin/$prog";
+        return "$sp/bin/$prog" if -x "$sp/bin/$prog";
+        return "$sp/$prog" if -x "$sp/$prog";
     }
-    $errstr = "could not find $prog, please set appropriate PATH";
+    $errstr = "could not find $prog, please set appropriate PATH or POSTGRES_HOME";
     return;
-}
-
-sub _get_path_of {
-    my $prog = shift;
-    my $path = `which $prog 2> /dev/null`;
-    chomp $path
-        if $path;
-    $path = ''
-        unless -x $path;
-    $path;
 }
 
 1;
